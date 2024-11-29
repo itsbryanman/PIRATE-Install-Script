@@ -1,6 +1,8 @@
 # 🏴‍☠️ P.I.R.A.T.E. Media Server Install Script 🏴‍☠️
 
-**P.I.R.A.T.E.** stands for *Platform Integration and Resource Automation for Tracking and Enrichment*. This comprehensive install script sets up a robust, secure, and feature-rich media server environment, perfect for streaming your favorite content seamlessly across all your devices.
+**P.I.R.A.T.E.** stands for Platform Integration and Resource Automation for Tracking and Enrichment. This comprehensive install script sets up a robust, secure, and feature-rich media server environment, perfect for streaming your favorite content seamlessly across all your devices.
+
+The script is designed to automatically detect your Linux distribution (Debian, Ubuntu, Fedora, CentOS, Arch, and others) and adapt its installation commands accordingly. To perform its tasks, the script requires administrator privileges (root or sudo access) to install packages, configure services, and manage dependencies.
 
 ---
 
