@@ -101,13 +101,45 @@ Before running the P.I.R.A.T.E. install script, ensure you have the following:
 - **Git**: Installed
 - **Sufficient Storage**: Adequate disk space for media and applications
 
-### Installation Steps
 
-#### 1. Clone the Repository
+## Installation Steps
 
+### 1. Clone the Repository
+Clone the repository to your local machine:
 ```bash
 git clone https://github.com/yourusername/pirate-media-server.git
 cd pirate-media-server
+```
+
+### 2. (Optional) Configure the Environment Variables
+The script uses a `.env` file to load configuration variables. You can customize these variables to match your setup.
+
+1. Copy the example `.env` file to create your custom environment file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Open the `.env` file in your preferred text editor:
+   ```bash
+   nano .env
+   ```
+
+3. Modify the variables in the `.env` file to suit your environment. For example:
+   - Update `MEDIA_PATH` to the location of your media files.
+   - Adjust ports for services like `PORTAINER_PORT`, `PLEX_PORT`, and `JELLYFIN_PORT` if needed.
+   - Enable or disable the VPN by setting `VPN_ENABLED` to `true` or `false`.
+
+4. Save and close the file.
+
+### 3. Run the Installation Script
+Start the script to begin the installation process:
+```bash
+./pirate_media_server.sh
+```
+
+Follow the on-screen prompts to select the categories and tools you want to install. The script will automatically handle dependencies and configurations.
+
+---
 
 ## 🔧 Configuration
 
@@ -148,8 +180,7 @@ Enhance your server's media experience with:
 - **Tautulli**: Plex usage monitoring.
 - **FileBot** and **MediaInfo**: Metadata enrichment and file organization.
 
-
 ---
 
 ## 🏴‍☠️ Happy Streaming! 🏴‍☠️
-
+```
