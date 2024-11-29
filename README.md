@@ -108,3 +108,48 @@ Before running the P.I.R.A.T.E. install script, ensure you have the following:
 ```bash
 git clone https://github.com/yourusername/pirate-media-server.git
 cd pirate-media-server
+
+## 🔧 Configuration
+
+### Post-Installation Setup
+
+#### Plex/Jellyfin
+- Access the web interface:
+  - **Plex**: `http://<your-server-ip>:32400`
+  - **Jellyfin**: `http://<your-server-ip>:8096`
+- Add libraries for TV shows, movies, and music.
+
+#### Sonarr/Radarr
+- Open their web interfaces:
+  - **Sonarr**: `http://<your-server-ip>:8989`
+  - **Radarr**: `http://<your-server-ip>:7878`
+- Configure indexers via **Prowlarr** and link to your download clients.
+
+#### Docker Tools
+- Access **Portainer** to manage containers:  
+  `http://<your-server-ip>:9000`
+
+---
+
+## 📦 Components
+
+### Media Management Tools
+Automate the organization and streaming of your media with tools like:
+- **Plex** or **Jellyfin**: For seamless streaming.
+- **Sonarr**, **Radarr**, **Readarr**, and **Lidarr**: Download, organize, and manage TV shows, movies, books, and music.
+
+### Downloader Tools
+Effortlessly manage downloads with:
+- **qBittorrent**, **Transmission**, and **SABnzbd**: For torrenting and Usenet access.
+
+### Supporting Tools
+Enhance your server's media experience with:
+- **Bazarr**: Automatic subtitle management.
+- **Tautulli**: Plex usage monitoring.
+- **FileBot** and **MediaInfo**: Metadata enrichment and file organization.
+
+
+---
+
+## 🏴‍☠️ Happy Streaming! 🏴‍☠️
+
