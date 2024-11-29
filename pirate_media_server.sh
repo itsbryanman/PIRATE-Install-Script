@@ -7,37 +7,60 @@ else
     echo ".env file not found. Using default values where applicable."
 fi
 
-# Define categories and their respective tools
-declare -A categories_tools=(
-    ["Media Management Tools"]="Plex Jellyfin Sonarr Radarr Readarr Lidarr Prowlarr"
-    ["Downloader Tools"]="qBittorrent Transmission NZBGet SABnzbd"
-    ["Supporting Tools"]="Bazarr Tautulli FileBot MediaInfo FFmpeg"
-    ["File Management"]="rclone UnionFS MergerFS"
-    ["Server Utilities"]="Docker Portainer Nginx Fail2Ban"
-    ["Other Tools"]="Jackett HandBrake GrafanaLoki"
-)
+# Detect Linux distribution and package manager
+detect_distro() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        DISTRO=$ID
+    else
+        echo "Unsupported distribution. Exiting."
+        exit 1
+    fi
 
-# Prerequisite installation (dependencies)
+    case $DISTRO in
+        ubuntu|debian)
+            PKG_MANAGER="apt"
+            UPDATE_CMD="sudo apt update"
+            INSTALL_CMD="sudo apt install -y"
+            ;;
+        fedora|rhel|centos)
+            PKG_MANAGER="dnf"
+            UPDATE_CMD="sudo dnf update -y"
+            INSTALL_CMD="sudo dnf install -y"
+            ;;
+        arch)
+            PKG_MANAGER="pacman"
+            UPDATE_CMD="sudo pacman -Syu --noconfirm"
+            INSTALL_CMD="sudo pacman -S --noconfirm"
+            ;;
+        *)
+            echo "Unsupported distribution: $DISTRO"
+            exit 1
+            ;;
+    esac
+}
+
+# Install prerequisites based on detected distribution
 install_dependencies() {
-    echo "Installing common dependencies..."
-    sudo apt update
-    sudo apt install -y curl wget git gnupg software-properties-common build-essential apt-transport-https unzip ffmpeg
+    echo "Installing common dependencies for $DISTRO..."
+    $UPDATE_CMD
+    $INSTALL_CMD curl wget git gnupg build-essential unzip ffmpeg
     echo "Dependencies installed!"
 }
 
 # Define installation commands for each tool
 install_tool() {
     case $1 in
-        # Media Management Tools
         "Plex")
             echo "Installing Plex..."
             curl https://downloads.plex.tv/plex-keys/PlexSign.key | sudo apt-key add -
             echo "deb https://downloads.plex.tv/repo/deb public main" | sudo tee /etc/apt/sources.list.d/plexmediaserver.list
-            sudo apt update && sudo apt install plexmediaserver -y
+            $UPDATE_CMD
+            $INSTALL_CMD plexmediaserver
             ;;
         "Jellyfin")
             echo "Installing Jellyfin..."
-            sudo apt install jellyfin -y
+            $INSTALL_CMD jellyfin
             ;;
         "Sonarr")
             echo "Installing Sonarr..."
@@ -59,26 +82,22 @@ install_tool() {
             echo "Installing Prowlarr..."
             bash <(curl -s https://wiki.servarr.com/prowlarr/installation/linux)
             ;;
-
-        # Downloader Tools
         "qBittorrent")
             echo "Installing qBittorrent..."
-            sudo apt install qbittorrent-nox -y
+            $INSTALL_CMD qbittorrent-nox
             ;;
         "Transmission")
             echo "Installing Transmission..."
-            sudo apt install transmission-daemon -y
+            $INSTALL_CMD transmission-daemon
             ;;
         "NZBGet")
             echo "Installing NZBGet..."
-            sudo apt install nzbget -y
+            $INSTALL_CMD nzbget
             ;;
         "SABnzbd")
             echo "Installing SABnzbd..."
-            sudo apt install sabnzbdplus -y
+            $INSTALL_CMD sabnzbdplus
             ;;
-
-        # Supporting Tools
         "Bazarr")
             echo "Installing Bazarr..."
             bash <(curl -s https://wiki.servarr.com/bazarr/installation/linux)
@@ -89,35 +108,31 @@ install_tool() {
             ;;
         "FileBot")
             echo "Installing FileBot..."
-            sudo apt install filebot -y
+            $INSTALL_CMD filebot
             ;;
         "MediaInfo")
             echo "Installing MediaInfo..."
-            sudo apt install mediainfo -y
+            $INSTALL_CMD mediainfo
             ;;
         "FFmpeg")
             echo "Installing FFmpeg..."
-            sudo apt install ffmpeg -y
+            $INSTALL_CMD ffmpeg
             ;;
-
-        # File Management
         "rclone")
             echo "Installing rclone..."
             curl https://rclone.org/install.sh | sudo bash
             ;;
         "UnionFS")
             echo "Installing UnionFS..."
-            sudo apt install unionfs-fuse -y
+            $INSTALL_CMD unionfs-fuse
             ;;
         "MergerFS")
             echo "Installing MergerFS..."
-            sudo apt install mergerfs -y
+            $INSTALL_CMD mergerfs
             ;;
-
-        # Server Utilities
         "Docker")
             echo "Installing Docker..."
-            sudo apt install docker.io -y
+            $INSTALL_CMD docker.io
             ;;
         "Portainer")
             echo "Installing Portainer..."
@@ -125,28 +140,27 @@ install_tool() {
             ;;
         "Nginx")
             echo "Installing Nginx..."
-            sudo apt install nginx -y
+            $INSTALL_CMD nginx
             ;;
         "Fail2Ban")
             echo "Installing Fail2Ban..."
-            sudo apt install fail2ban -y
+            $INSTALL_CMD fail2ban
             ;;
-
-        # Other Tools
         "Jackett")
             echo "Installing Jackett..."
             bash <(curl -s https://wiki.servarr.com/jackett/installation/linux)
             ;;
         "HandBrake")
             echo "Installing HandBrake..."
-            sudo apt install handbrake -y
+            $INSTALL_CMD handbrake
             ;;
         "GrafanaLoki")
             echo "Installing Grafana Loki..."
-            sudo apt install grafana-loki -y
+            $INSTALL_CMD grafana-loki
             ;;
-
-        *) echo "Installation for $1 is not yet implemented." ;;
+        *)
+            echo "Installation for $1 is not yet implemented."
+            ;;
     esac
 }
 
@@ -173,7 +187,8 @@ display_tools() {
 }
 
 # Main script
-install_dependencies  # Install common dependencies
+detect_distro
+install_dependencies
 
 while true; do
     display_categories
@@ -183,21 +198,18 @@ while true; do
         break
     fi
 
-    # Get category name from choice
     category_name=$(echo "${!categories_tools[@]}" | awk -v n="$category_choice" '{print $n}')
     if [[ -z "$category_name" ]]; then
         echo "Invalid choice. Try again."
         continue
     fi
 
-    # Display tools in the chosen category
     display_tools "$category_name"
     read -rp "Enter tool numbers to install (space-separated): " tool_choices
     if [[ $tool_choices == "0" ]]; then
         continue
     fi
 
-    # Install selected tools
     tools=(${categories_tools[$category_name]})
     for tool_num in $tool_choices; do
         tool_name="${tools[$((tool_num-1))]}"
