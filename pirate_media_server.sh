@@ -1,6 +1,22 @@
 #!/bin/bash
 
-# Load environment variables from .env file
+set -euo pipefail
+
+# ASCII Art Header
+printf "\033c"
+echo "===================================================="
+echo "     ____  _ __   __   ___    ____ ___   ______     "
+echo "    / __ \\(_) /  / /  /   |  / __ )__ \\ / ____/     "
+echo "   / /_/ / / /  / /  / /| | / __  /_/ // /          "
+echo "  / _, _/ / /__/ /  / ___ |/ /_/ / __// /___        "
+echo " /_/ |_/_/____/_/  /_/  |_/_____/____/\\____/        "
+echo "===================================================="
+echo "Welcome to PIRATE (Platform Integration and Resource"
+echo "Automation for Tracking and Enrichment)."
+echo "===================================================="
+echo
+
+# Load environment variables
 if [ -f .env ]; then
     export $(grep -v '^#' .env | xargs)
 else
@@ -44,157 +60,120 @@ detect_distro() {
 install_dependencies() {
     echo "Installing common dependencies for $DISTRO..."
     $UPDATE_CMD
-    $INSTALL_CMD curl wget git gnupg build-essential unzip ffmpeg dialog
+    $INSTALL_CMD curl wget git gnupg build-essential unzip ffmpeg whiptail
     echo "Dependencies installed!"
 }
 
-# Define categories and their respective tools
-declare -A categories_tools=(
-    ["Media Management Tools"]="Plex Jellyfin Sonarr Radarr Readarr Lidarr Prowlarr"
-    ["Downloader Tools"]="qBittorrent Transmission NZBGet SABnzbd"
-    ["Supporting Tools"]="Bazarr Tautulli FileBot MediaInfo FFmpeg"
-    ["File Management"]="rclone UnionFS MergerFS"
-    ["Server Utilities"]="Docker Portainer Nginx Fail2Ban"
-    ["Other Tools"]="Jackett HandBrake GrafanaLoki"
-)
+# Add repository logic for Debian/Ubuntu
+add_repository() {
+    local tool=$1
+    case $tool in
+        "Jellyfin")
+            echo "Adding repository for Jellyfin..."
+            wget -O - https://repo.jellyfin.org/jellyfin_team.gpg.key | sudo apt-key add -
+            echo "deb [arch=$(dpkg --print-architecture)] https://repo.jellyfin.org/debian $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/jellyfin.list
+            $UPDATE_CMD
+            ;;
+        "Plex")
+            echo "Adding repository for Plex..."
+            curl https://downloads.plex.tv/plex-keys/PlexSign.key | sudo apt-key add -
+            echo "deb https://downloads.plex.tv/repo/deb public main" | sudo tee /etc/apt/sources.list.d/plexmediaserver.list
+            $UPDATE_CMD
+            ;;
+        "Sonarr"|"Radarr"|"Lidarr"|"Readarr"|"Prowlarr")
+            echo "Adding repository for $tool..."
+            wget -O - https://apt.sonarr.tv/sonarr.asc | sudo apt-key add -
+            echo "deb https://apt.sonarr.tv/debian $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/$tool.list
+            $UPDATE_CMD
+            ;;
+        *)
+            echo "No additional repository needed for $tool."
+            ;;
+    esac
+}
 
-# Display tools in a list with categories for selection
+# Install the selected tools
+install_tool() {
+    local tool=$1
+    add_repository "$tool"  # Add repository for Debian/Ubuntu if needed
+
+    case $tool in
+        "Jellyfin")
+            echo "Installing Jellyfin..."
+            $INSTALL_CMD jellyfin
+            ;;
+        "Plex")
+            echo "Installing Plex..."
+            $INSTALL_CMD plexmediaserver
+            ;;
+        "Sonarr"|"Radarr"|"Readarr"|"Lidarr"|"Prowlarr")
+            echo "Installing $tool..."
+            bash <(curl -s https://wiki.servarr.com/$tool/installation/linux)
+            ;;
+        "qBittorrent")
+            echo "Installing qBittorrent..."
+            $INSTALL_CMD qbittorrent-nox
+            ;;
+        "Transmission")
+            echo "Installing Transmission..."
+            $INSTALL_CMD transmission-daemon
+            ;;
+        "NZBGet")
+            echo "Installing NZBGet..."
+            $INSTALL_CMD nzbget
+            ;;
+        "SABnzbd")
+            echo "Installing SABnzbd..."
+            $INSTALL_CMD sabnzbdplus
+            ;;
+        "Bazarr")
+            echo "Installing Bazarr..."
+            bash <(curl -s https://wiki.servarr.com/bazarr/installation/linux)
+            ;;
+        "Docker")
+            echo "Installing Docker..."
+            $INSTALL_CMD docker.io
+            ;;
+        "Portainer")
+            echo "Installing Portainer..."
+            sudo docker run -d -p 9000:9000 portainer/portainer-ce
+            ;;
+        "Jackett")
+            echo "Installing Jackett..."
+            bash <(curl -s https://wiki.servarr.com/jackett/installation/linux)
+            ;;
+        *)
+            echo "Installation logic for $tool is not yet implemented."
+            ;;
+    esac
+}
+
+# Display tool selection menu
 select_tools() {
-    local options=()
-    for category in "${!categories_tools[@]}"; do
-        tools=(${categories_tools[$category]})
-        for tool in "${tools[@]}"; do
-            options+=("$tool" "From $category")
-        done
-    done
+    local options=("Jellyfin" "Media server" OFF
+                   "Plex" "Media server" OFF
+                   "Sonarr" "TV Shows manager" OFF
+                   "Radarr" "Movies manager" OFF
+                   "Lidarr" "Music manager" OFF
+                   "Prowlarr" "Indexer manager" OFF
+                   "qBittorrent" "Torrent client" OFF
+                   "Docker" "Containerization" OFF
+                   "Portainer" "Docker management" OFF)
 
-    selected_tools=$(dialog --clear --stdout --title "Select Tools to Install" \
-        --checklist "Use space to select tools for installation:" 20 70 15 \
-        "${options[@]}")
+    selected_tools=$(whiptail --title "Select Tools to Install" \
+        --checklist "Use space to select tools:" 20 70 10 "${options[@]}" 3>&1 1>&2 2>&3)
 
     echo "$selected_tools"
 }
 
-# Install the selected tools
-install_selected_tools() {
-    for tool in $1; do
-        case $tool in
-            "Plex")
-                echo "Installing Plex..."
-                curl https://downloads.plex.tv/plex-keys/PlexSign.key | sudo apt-key add -
-                echo "deb https://downloads.plex.tv/repo/deb public main" | sudo tee /etc/apt/sources.list.d/plexmediaserver.list
-                $UPDATE_CMD
-                $INSTALL_CMD plexmediaserver
-                ;;
-            "Jellyfin")
-                echo "Installing Jellyfin..."
-                $INSTALL_CMD jellyfin
-                ;;
-            "Sonarr")
-                echo "Installing Sonarr..."
-                bash <(curl -s https://wiki.servarr.com/sonarr/installation/linux)
-                ;;
-            "Radarr")
-                echo "Installing Radarr..."
-                bash <(curl -s https://wiki.servarr.com/radarr/installation/linux)
-                ;;
-            "Readarr")
-                echo "Installing Readarr..."
-                bash <(curl -s https://wiki.servarr.com/readarr/installation/linux)
-                ;;
-            "Lidarr")
-                echo "Installing Lidarr..."
-                bash <(curl -s https://wiki.servarr.com/lidarr/installation/linux)
-                ;;
-            "Prowlarr")
-                echo "Installing Prowlarr..."
-                bash <(curl -s https://wiki.servarr.com/prowlarr/installation/linux)
-                ;;
-            "qBittorrent")
-                echo "Installing qBittorrent..."
-                $INSTALL_CMD qbittorrent-nox
-                ;;
-            "Transmission")
-                echo "Installing Transmission..."
-                $INSTALL_CMD transmission-daemon
-                ;;
-            "NZBGet")
-                echo "Installing NZBGet..."
-                $INSTALL_CMD nzbget
-                ;;
-            "SABnzbd")
-                echo "Installing SABnzbd..."
-                $INSTALL_CMD sabnzbdplus
-                ;;
-            "Bazarr")
-                echo "Installing Bazarr..."
-                bash <(curl -s https://wiki.servarr.com/bazarr/installation/linux)
-                ;;
-            "Tautulli")
-                echo "Installing Tautulli..."
-                bash <(curl -s https://wiki.tautulli.com/install)
-                ;;
-            "FileBot")
-                echo "Installing FileBot..."
-                $INSTALL_CMD filebot
-                ;;
-            "MediaInfo")
-                echo "Installing MediaInfo..."
-                $INSTALL_CMD mediainfo
-                ;;
-            "FFmpeg")
-                echo "Installing FFmpeg..."
-                $INSTALL_CMD ffmpeg
-                ;;
-            "rclone")
-                echo "Installing rclone..."
-                curl https://rclone.org/install.sh | sudo bash
-                ;;
-            "UnionFS")
-                echo "Installing UnionFS..."
-                $INSTALL_CMD unionfs-fuse
-                ;;
-            "MergerFS")
-                echo "Installing MergerFS..."
-                $INSTALL_CMD mergerfs
-                ;;
-            "Docker")
-                echo "Installing Docker..."
-                $INSTALL_CMD docker.io
-                ;;
-            "Portainer")
-                echo "Installing Portainer..."
-                sudo docker run -d -p "${DOCKER_PORT:-9000}":9000 portainer/portainer-ce
-                ;;
-            "Nginx")
-                echo "Installing Nginx..."
-                $INSTALL_CMD nginx
-                ;;
-            "Fail2Ban")
-                echo "Installing Fail2Ban..."
-                $INSTALL_CMD fail2ban
-                ;;
-            "Jackett")
-                echo "Installing Jackett..."
-                bash <(curl -s https://wiki.servarr.com/jackett/installation/linux)
-                ;;
-            "HandBrake")
-                echo "Installing HandBrake..."
-                $INSTALL_CMD handbrake
-                ;;
-            "GrafanaLoki")
-                echo "Installing Grafana Loki..."
-                $INSTALL_CMD grafana-loki
-                ;;
-            *)
-                echo "Installation for $tool is not yet implemented."
-                ;;
-        esac
-    done
-}
-
-# Main script
+# Main script logic
 detect_distro
 install_dependencies
 selected_tools=$(select_tools)
-install_selected_tools "$selected_tools"
+
+echo "Installing selected tools..."
+for tool in $selected_tools; do
+    install_tool "$(echo $tool | tr -d '"')"  # Remove quotes from whiptail output
+done
+
+echo "Installation completed successfully!"
