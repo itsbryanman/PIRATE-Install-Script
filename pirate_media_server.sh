@@ -19,6 +19,7 @@ NC='\033[0m' # No Color
 LOG_FILE="/var/log/ultimate_pirate_installer.log"
 CONFIG_DIR="/opt/pirate-config"
 BACKUP_DIR="/opt/pirate-backups"
+SERVICE_USER="${SUDO_USER:-"$(logname 2>/dev/null || echo "$USER")"}"
 
 # Initialize
 mkdir -p "$CONFIG_DIR" "$BACKUP_DIR"
@@ -66,10 +67,49 @@ detect_distro() {
 
 install_dependencies() {
     log "Installing base dependencies..."
-    $UPDATE_CMD
-    $INSTALL_CMD curl wget git gnupg build-essential unzip ffmpeg \
+    "$UPDATE_CMD"
+    "$INSTALL_CMD" curl wget git gnupg build-essential unzip ffmpeg \
         whiptail apt-transport-https ca-certificates software-properties-common \
         python3 python3-pip nodejs npm sqlite3 lsb-release
+}
+
+install_docker() {
+    if ! command -v docker &> /dev/null; then
+        log "Installing Docker..."
+        "$UPDATE_CMD"
+        "$INSTALL_CMD" ca-certificates curl gnupg
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list
+        "$UPDATE_CMD"
+        "$INSTALL_CMD" docker-ce docker-ce-cli containerd.io
+        systemctl enable --now docker
+        success "Docker installed."
+    else
+        success "Docker already installed."
+    fi
+}
+
+install_portainer() {
+    if ! docker ps | grep -q portainer; then
+        log "Installing Portainer..."
+        docker volume create portainer_data
+        docker run -d -p 9443:9443 --name portainer --restart=unless-stopped \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v portainer_data:/data \
+            portainer/portainer-ce:latest
+        success "Portainer installed."
+    else
+        success "Portainer already running."
+    fi
+}
+
+ensure_docker_compose() {
+    if ! command -v docker-compose &> /dev/null; then
+        log "Installing docker-compose..."
+        "$INSTALL_CMD" docker-compose || pip3 install docker-compose
+        success "docker-compose installed."
+    fi
 }
 
 # Check if service is installed
@@ -171,11 +211,11 @@ show_tools_menu() {
 
 # Progress bar
 show_progress() {
-    local title=$1
-    local text=$2
+    local title="$1"
+    local text="$2"
     {
-        for ((i = 0 ; i <= 100 ; i+=5)); do
-            echo $i
+        for ((i = 0; i <= 100; i+=5)); do
+            echo "$i"
             sleep 0.1
         done
     } | whiptail --gauge "$text" 8 70 0 --title "$title"
@@ -191,8 +231,8 @@ install_jellyfin() {
     curl -fsSL https://repo.jellyfin.org/jellyfin_team.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/jellyfin.gpg
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/jellyfin.gpg] https://repo.jellyfin.org/${DISTRO} ${VERSION_CODENAME} main" | sudo tee /etc/apt/sources.list.d/jellyfin.list > /dev/null
 
-    $UPDATE_CMD
-    $INSTALL_CMD jellyfin
+    "$UPDATE_CMD"
+    "$INSTALL_CMD" jellyfin
     systemctl enable --now jellyfin
 
     run_configuration_wizard "jellyfin"
@@ -206,8 +246,8 @@ install_plex() {
     curl https://downloads.plex.tv/plex-keys/PlexSign.key | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/plex.gpg >/dev/null
     echo "deb https://downloads.plex.tv/repo/deb public main" | sudo tee /etc/apt/sources.list.d/plexmediaserver.list
 
-    $UPDATE_CMD
-    $INSTALL_CMD plexmediaserver
+    "$UPDATE_CMD"
+    "$INSTALL_CMD" plexmediaserver
     systemctl enable --now plexmediaserver
 
     run_configuration_wizard "plex"
@@ -218,11 +258,12 @@ install_sonarr() {
     log "Installing Sonarr..."
     show_progress "Installing Sonarr" "Setting up repository..."
 
-    sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 2009837CBFFD68F45BC180471F4F90DE2A9B4BF8
-    echo "deb https://apt.sonarr.tv/debian buster main" | sudo tee /etc/apt/sources.list.d/sonarr.list
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2009837CBFFD68F45BC180471F4F90DE2A9B4BF8 | gpg --dearmor -o /etc/apt/keyrings/sonarr.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/sonarr.gpg] https://apt.sonarr.tv/debian buster main" | tee /etc/apt/sources.list.d/sonarr.list
 
-    $UPDATE_CMD
-    $INSTALL_CMD sonarr
+    "$UPDATE_CMD"
+    "$INSTALL_CMD" sonarr
     systemctl enable --now sonarr
 
     run_configuration_wizard "sonarr"
@@ -233,11 +274,12 @@ install_radarr() {
     log "Installing Radarr..."
     show_progress "Installing Radarr" "Setting up repository..."
 
-    sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 2009837CBFFD68F45BC180471F4F90DE2A9B4BF8
-    echo "deb https://apt.radarr.tv/debian/ buster main" | sudo tee /etc/apt/sources.list.d/radarr.list
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2009837CBFFD68F45BC180471F4F90DE2A9B4BF8 | gpg --dearmor -o /etc/apt/keyrings/radarr.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/radarr.gpg] https://apt.radarr.tv/debian/ buster main" | tee /etc/apt/sources.list.d/radarr.list
 
-    $UPDATE_CMD
-    $INSTALL_CMD radarr
+    "$UPDATE_CMD"
+    "$INSTALL_CMD" radarr
     systemctl enable --now radarr
 
     run_configuration_wizard "radarr"
@@ -248,11 +290,12 @@ install_lidarr() {
     log "Installing Lidarr..."
     show_progress "Installing Lidarr" "Setting up repository..."
 
-    sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 2009837CBFFD68F45BC180471F4F90DE2A9B4BF8
-    echo "deb https://apt.lidarr.tv/debian buster main" | sudo tee /etc/apt/sources.list.d/lidarr.list
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2009837CBFFD68F45BC180471F4F90DE2A9B4BF8 | gpg --dearmor -o /etc/apt/keyrings/lidarr.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/lidarr.gpg] https://apt.lidarr.tv/debian buster main" | tee /etc/apt/sources.list.d/lidarr.list
 
-    $UPDATE_CMD
-    $INSTALL_CMD lidarr
+    "$UPDATE_CMD"
+    "$INSTALL_CMD" lidarr
     systemctl enable --now lidarr
 
     run_configuration_wizard "lidarr"
@@ -263,11 +306,12 @@ install_prowlarr() {
     log "Installing Prowlarr..."
     show_progress "Installing Prowlarr" "Setting up repository..."
 
-    sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 2009837CBFFD68F45BC180471F4F90DE2A9B4BF8
-    echo "deb https://apt.prowlarr.com/debian buster main" | sudo tee /etc/apt/sources.list.d/prowlarr.list
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2009837CBFFD68F45BC180471F4F90DE2A9B4BF8 | gpg --dearmor -o /etc/apt/keyrings/prowlarr.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/prowlarr.gpg] https://apt.prowlarr.com/debian buster main" | tee /etc/apt/sources.list.d/prowlarr.list
 
-    $UPDATE_CMD
-    $INSTALL_CMD prowlarr
+    "$UPDATE_CMD"
+    "$INSTALL_CMD" prowlarr
     systemctl enable --now prowlarr
 
     run_configuration_wizard "prowlarr"
@@ -278,7 +322,7 @@ install_qbittorrent() {
     log "Installing qBittorrent..."
     show_progress "Installing qBittorrent" "Installing torrent client..."
 
-    $INSTALL_CMD qbittorrent-nox
+    "$INSTALL_CMD" qbittorrent-nox
     systemctl enable --now qbittorrent-nox
 
     run_configuration_wizard "qbittorrent"
@@ -288,6 +332,8 @@ install_qbittorrent() {
 install_funkwhale() {
     log "Installing Funkwhale..."
     show_progress "Installing Funkwhale" "Deploying Docker container..."
+
+    ensure_docker_compose
 
     # Create Funkwhale directories
     mkdir -p /srv/funkwhale/data /srv/funkwhale/music
@@ -335,7 +381,7 @@ install_tvheadend() {
 
     # Add TVHeadend repository
     curl -1sLf 'https://dl.cloudsmith.io/public/tvheadend/tvheadend/setup.deb.sh' | sudo -E bash
-    $INSTALL_CMD tvheadend
+    "$INSTALL_CMD" tvheadend
 
     success "TVHeadend installed at http://localhost:9981"
 }
@@ -361,7 +407,7 @@ install_bazarr() {
     show_progress "Installing Bazarr" "Setting up subtitle management..."
 
     # Install Python dependencies
-    $INSTALL_CMD python3-dev python3-pip python3-libxml2 python3-libxslt1 libxml2-dev libxslt1-dev
+    "$INSTALL_CMD" python3-dev python3-pip python3-libxml2 python3-libxslt1 libxml2-dev libxslt1-dev
 
     cd /opt
     git clone https://github.com/morpheus65535/bazarr.git
@@ -375,8 +421,8 @@ Description=Bazarr
 After=syslog.target network.target
 
 [Service]
-User=$USER
-Group=$USER
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
 Type=simple
 ExecStart=/usr/bin/python3 /opt/bazarr/bazarr.py
 WorkingDirectory=/opt/bazarr
@@ -407,8 +453,8 @@ After=network.target
 
 [Service]
 Type=forking
-User=$USER
-Group=$USER
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
 ExecStart=/usr/bin/python3 /opt/Tautulli/Tautulli.py --daemon --datadir /opt/Tautulli --config /opt/Tautulli/config.ini --nolaunch --quiet
 GuessMainPID=no
 
@@ -440,8 +486,8 @@ Description=Ombi
 After=network.target
 
 [Service]
-User=$USER
-Group=$USER
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
 Type=simple
 WorkingDirectory=/opt/ombi
 ExecStart=/opt/ombi/Ombi
@@ -462,19 +508,26 @@ install_pihole() {
     log "Installing Pi-hole..."
     show_progress "Installing Pi-hole" "Setting up network-wide ad blocking..."
 
+    local ph_password
+    ph_password=$(whiptail --inputbox "Enter admin password for Pi-hole (leave blank for random):" 8 60 "" --title "Pi-hole Password" 3>&1 1>&2 2>&3)
+    if [ -z "$ph_password" ]; then
+        ph_password=$(openssl rand -base64 12)
+        whiptail --msgbox "Random password generated: $ph_password" 10 60
+    fi
+
     docker run -d \
         --name pihole \
         -p 53:53/tcp -p 53:53/udp \
         -p 8053:80 \
         -e TZ="$(cat /etc/timezone)" \
-        -e WEBPASSWORD="pirate" \
+        -e WEBPASSWORD="$ph_password" \
         -v pihole:/etc/pihole \
         -v dnsmasq:/etc/dnsmasq.d \
         --restart=unless-stopped \
         --hostname pi.hole \
         pihole/pihole:latest
 
-    success "Pi-hole installed at http://localhost:8053/admin (password: pirate)"
+    success "Pi-hole installed at http://localhost:8053/admin (password: $ph_password)"
 }
 
 # --- NEW FEATURES ---
@@ -606,6 +659,25 @@ backup_configs() {
     success "Backup created: $backup_path.tar.gz"
 }
 
+restore_configs() {
+    local backup_file
+    backup_file=$(whiptail --inputbox "Enter the full path to the backup tar.gz file to restore:" 8 60 "" --title "Restore Backup" 3>&1 1>&2 2>&3)
+    if [ -f "$backup_file" ]; then
+        tar -xzf "$backup_file" -C "$BACKUP_DIR"
+        local restore_dir
+        restore_dir=$(tar -tzf "$backup_file" | head -1 | cut -f1 -d"/")
+        for service in jellyfin plex sonarr radarr lidarr prowlarr jackett bazarr; do
+            if [ -d "$BACKUP_DIR/$restore_dir/$service" ]; then
+                cp -r "$BACKUP_DIR/$restore_dir/$service" "/var/lib/$service"
+            fi
+        done
+        rm -rf "$BACKUP_DIR/$restore_dir"
+        success "Restore completed."
+    else
+        error "Backup file not found."
+    fi
+}
+
 # --- MAIN LOOP ---
 main() {
     check_root
@@ -669,6 +741,7 @@ main() {
                 if ! is_installed portainer; then
                     install_portainer
                 fi
+                ensure_docker_compose
                 whiptail --msgbox "Docker and Portainer installed.\nAccess Portainer at: https://localhost:9443" 10 60
                 ;;
 
@@ -703,13 +776,13 @@ main() {
 
                 case $action in
                     1) backup_configs ;;
-                    2) echo "Restore function coming soon" ;;
+                    2) restore_configs ;;
                 esac
                 ;;
 
             8) # Update All
                 show_progress "Updating System" "Updating all packages and services..."
-                $UPDATE_CMD
+                "$UPDATE_CMD"
                 apt-get upgrade -y
                 success "System updated"
                 ;;
