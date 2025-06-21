@@ -53,6 +53,11 @@ Welcome to the **P.I.R.A.T.E. Media Server Install Script**! This script automat
     sudo ./pirate_media_server.sh
     ```
 
+3.  **Pre-pull Docker Images** (optional)
+    ```bash
+    ./pirate-stack-puller.sh
+    ```
+
 ---
 
 ##  Usage
