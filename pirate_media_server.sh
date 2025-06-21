@@ -1,179 +1,200 @@
 #!/bin/bash
 
-set -euo pipefail
+# P.I.R.A.T.E. Media Server Install Script
+#
+# This script automates the setup of a comprehensive media server environment.
+#
+# Author: Gemini
+# Version: 2.0
 
-# ASCII Art Header
-printf "\033c"
-echo "===================================================="
-echo "     ____  _ __   __   ___    ____ ___   ______     "
-echo "    / __ \\(_) /  / /  /   |  / __ )__ \\ / ____/     "
-echo "   / /_/ / / /  / /  / /| | / __  /_/ // /          "
-echo "  / _, _/ / /__/ /  / ___ |/ /_/ / __// /___        "
-echo " /_/ |_/_/____/_/  /_/  |_/_____/____/\\____/        "
-echo "===================================================="
-echo "Welcome to PIRATE (Platform Integration and Resource"
-echo "Automation for Tracking and Enrichment)."
-echo "===================================================="
-echo
+set -o errexit
+set -o nounset
+set -o pipefail
 
-# Load environment variables
-if [ -f .env ]; then
-    export $(grep -v '^#' .env | xargs)
-else
-    echo ".env file not found. Using default values where applicable."
-fi
+# --- Configuration ---
 
-# Detect Linux distribution and package manager
+# Log file for the script's output
+LOG_FILE="/var/log/pirate_media_server.log"
+
+# --- Helper Functions ---
+
+# Log a message to the console and the log file
+log() {
+    local message="$1"
+    echo "$(date +"%Y-%m-%d %H:%M:%S") - ${message}" | tee -a "${LOG_FILE}"
+}
+
+# Log an error message and exit the script
+error() {
+    local message="$1"
+    log "ERROR: ${message}"
+    exit 1
+}
+
+# Check if the script is being run with root privileges
+check_root() {
+    if [[ "${EUID}" -ne 0 ]]; then
+        error "This script must be run as root. Please use sudo."
+    fi
+}
+
+# Detect the Linux distribution and package manager
 detect_distro() {
     if [ -f /etc/os-release ]; then
+        # shellcheck source=/dev/null
         . /etc/os-release
         DISTRO=$ID
     else
-        echo "Unsupported distribution. Exiting."
-        exit 1
+        error "Unsupported distribution. Exiting."
     fi
 
     case $DISTRO in
         ubuntu|debian)
             PKG_MANAGER="apt"
-            UPDATE_CMD="sudo apt update"
-            INSTALL_CMD="sudo apt install -y"
+            UPDATE_CMD="sudo apt-get update"
+            INSTALL_CMD="sudo apt-get install -y"
+            UNINSTALL_CMD="sudo apt-get remove -y"
             ;;
         fedora|rhel|centos)
             PKG_MANAGER="dnf"
             UPDATE_CMD="sudo dnf update -y"
             INSTALL_CMD="sudo dnf install -y"
+            UNINSTALL_CMD="sudo dnf remove -y"
             ;;
         arch)
             PKG_MANAGER="pacman"
             UPDATE_CMD="sudo pacman -Syu --noconfirm"
             INSTALL_CMD="sudo pacman -S --noconfirm"
+            UNINSTALL_CMD="sudo pacman -Rns --noconfirm"
             ;;
         *)
-            echo "Unsupported distribution: $DISTRO"
-            exit 1
+            error "Unsupported distribution: $DISTRO"
             ;;
     esac
 }
 
-# Install prerequisites based on detected distribution
+# Install the required dependencies
 install_dependencies() {
-    echo "Installing common dependencies for $DISTRO..."
-    $UPDATE_CMD
-    $INSTALL_CMD curl wget git gnupg build-essential unzip ffmpeg whiptail
-    echo "Dependencies installed!"
+    log "Installing common dependencies for ${DISTRO}..."
+    ${UPDATE_CMD}
+    ${INSTALL_CMD} curl wget git gnupg build-essential unzip ffmpeg whiptail
+    log "Dependencies installed successfully."
 }
 
-# Add repository logic for Debian/Ubuntu
-add_repository() {
-    local tool=$1
-    case $tool in
-        "Jellyfin")
-            echo "Adding repository for Jellyfin..."
+# --- Tool Installation and Uninstallation Functions ---
+
+# The following functions handle the installation and uninstallation of each tool.
+# Each function should:
+# 1. Add the necessary repository (if applicable).
+# 2. Install the tool using the appropriate package manager.
+# 3. Configure the tool (if necessary).
+# 4. Log the installation/uninstallation status.
+
+install_jellyfin() {
+    log "Installing Jellyfin..."
+    case $DISTRO in
+        ubuntu|debian)
             wget -O - https://repo.jellyfin.org/jellyfin_team.gpg.key | sudo apt-key add -
             echo "deb [arch=$(dpkg --print-architecture)] https://repo.jellyfin.org/debian $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/jellyfin.list
-            $UPDATE_CMD
-            ;;
-        "Plex")
-            echo "Adding repository for Plex..."
-            curl https://downloads.plex.tv/plex-keys/PlexSign.key | sudo apt-key add -
-            echo "deb https://downloads.plex.tv/repo/deb public main" | sudo tee /etc/apt/sources.list.d/plexmediaserver.list
-            $UPDATE_CMD
-            ;;
-        "Sonarr"|"Radarr"|"Lidarr"|"Readarr"|"Prowlarr")
-            echo "Adding repository for $tool..."
-            wget -O - https://apt.sonarr.tv/sonarr.asc | sudo apt-key add -
-            echo "deb https://apt.sonarr.tv/debian $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/$tool.list
-            $UPDATE_CMD
+            ${UPDATE_CMD}
+            ${INSTALL_CMD} jellyfin
             ;;
         *)
-            echo "No additional repository needed for $tool."
+            error "Jellyfin installation is not supported on this distribution."
             ;;
     esac
+    log "Jellyfin installed successfully."
 }
 
-# Install the selected tools
-install_tool() {
-    local tool=$1
-    add_repository "$tool"  # Add repository for Debian/Ubuntu if needed
-
-    case $tool in
-        "Jellyfin")
-            echo "Installing Jellyfin..."
-            $INSTALL_CMD jellyfin
-            ;;
-        "Plex")
-            echo "Installing Plex..."
-            $INSTALL_CMD plexmediaserver
-            ;;
-        "Sonarr"|"Radarr"|"Readarr"|"Lidarr"|"Prowlarr")
-            echo "Installing $tool..."
-            bash <(curl -s https://wiki.servarr.com/$tool/installation/linux)
-            ;;
-        "qBittorrent")
-            echo "Installing qBittorrent..."
-            $INSTALL_CMD qbittorrent-nox
-            ;;
-        "Transmission")
-            echo "Installing Transmission..."
-            $INSTALL_CMD transmission-daemon
-            ;;
-        "NZBGet")
-            echo "Installing NZBGet..."
-            $INSTALL_CMD nzbget
-            ;;
-        "SABnzbd")
-            echo "Installing SABnzbd..."
-            $INSTALL_CMD sabnzbdplus
-            ;;
-        "Bazarr")
-            echo "Installing Bazarr..."
-            bash <(curl -s https://wiki.servarr.com/bazarr/installation/linux)
-            ;;
-        "Docker")
-            echo "Installing Docker..."
-            $INSTALL_CMD docker.io
-            ;;
-        "Portainer")
-            echo "Installing Portainer..."
-            sudo docker run -d -p 9000:9000 portainer/portainer-ce
-            ;;
-        "Jackett")
-            echo "Installing Jackett..."
-            bash <(curl -s https://wiki.servarr.com/jackett/installation/linux)
-            ;;
-        *)
-            echo "Installation logic for $tool is not yet implemented."
-            ;;
-    esac
+uninstall_jellyfin() {
+    log "Uninstalling Jellyfin..."
+    ${UNINSTALL_CMD} jellyfin
+    rm -f /etc/apt/sources.list.d/jellyfin.list
+    log "Jellyfin uninstalled successfully."
 }
 
-# Display tool selection menu
-select_tools() {
-    local options=("Jellyfin" "Media server" OFF
-                   "Plex" "Media server" OFF
-                   "Sonarr" "TV Shows manager" OFF
-                   "Radarr" "Movies manager" OFF
-                   "Lidarr" "Music manager" OFF
-                   "Prowlarr" "Indexer manager" OFF
-                   "qBittorrent" "Torrent client" OFF
-                   "Docker" "Containerization" OFF
-                   "Portainer" "Docker management" OFF)
+# Add more installation and uninstallation functions for other tools here...
 
-    selected_tools=$(whiptail --title "Select Tools to Install" \
-        --checklist "Use space to select tools:" 20 70 10 "${options[@]}" 3>&1 1>&2 2>&3)
+# --- Main Menu Functions ---
 
-    echo "$selected_tools"
+show_main_menu() {
+    whiptail --title "P.I.R.A.T.E. Media Server" --menu "Choose an option:" 20 78 10 \
+        "1" "Install Tools" \
+        "2" "Uninstall Tools" \
+        "3" "Update Tools" \
+        "4" "Exit" 3>&1 1>&2 2>&3
 }
 
-# Main script logic
-detect_distro
-install_dependencies
-selected_tools=$(select_tools)
+show_install_menu() {
+    whiptail --title "Install Tools" --checklist "Choose tools to install:" 20 78 10 \
+        "Jellyfin" "Media server" OFF \
+        "Plex" "Media server" OFF \
+        "Sonarr" "TV Shows manager" OFF \
+        "Radarr" "Movies manager" OFF \
+        "Lidarr" "Music manager" OFF \
+        "Prowlarr" "Indexer manager" OFF \
+        "qBittorrent" "Torrent client" OFF \
+        "Docker" "Containerization" OFF \
+        "Portainer" "Docker management" OFF 3>&1 1>&2 2>&3
+}
 
-echo "Installing selected tools..."
-for tool in $selected_tools; do
-    install_tool "$(echo $tool | tr -d '"')"  # Remove quotes from whiptail output
-done
+show_uninstall_menu() {
+    whiptail --title "Uninstall Tools" --checklist "Choose tools to uninstall:" 20 78 10 \
+        "Jellyfin" "Media server" OFF \
+        "Plex" "Media server" OFF \
+        "Sonarr" "TV Shows manager" OFF \
+        "Radarr" "Movies manager" OFF \
+        "Lidarr" "Music manager" OFF \
+        "Prowlarr" "Indexer manager" OFF \
+        "qBittorrent" "Torrent client" OFF \
+        "Docker" "Containerization" OFF \
+        "Portainer" "Docker management" OFF 3>&1 1>&2 2>&3
+}
 
-echo "Installation completed successfully!"
+# --- Main Script Logic ---
+
+main() {
+    check_root
+    detect_distro
+    install_dependencies
+
+    while true; do
+        main_menu_choice=$(show_main_menu)
+        case $main_menu_choice in
+            1)
+                install_menu_choice=$(show_install_menu)
+                if [ -n "$install_menu_choice" ]; then
+                    for tool in $install_menu_choice; do
+                        tool_name=$(echo "$tool" | tr -d '"')
+                        "install_${tool_name,,}"
+                    done
+                fi
+                ;;
+            2)
+                uninstall_menu_choice=$(show_uninstall_menu)
+                if [ -n "$uninstall_menu_choice" ]; then
+                    for tool in $uninstall_menu_choice; do
+                        tool_name=$(echo "$tool" | tr -d '"')
+                        "uninstall_${tool_name,,}"
+                    done
+                fi
+                ;;
+            3)
+                log "Updating all tools..."
+                ${UPDATE_CMD}
+                log "All tools updated successfully."
+                ;;
+            4)
+                log "Exiting."
+                exit 0
+                ;;
+            *)
+                log "Invalid option. Exiting."
+                exit 1
+                ;;
+        esac
+    done
+}
+
+# --- Script Entry Point ---
+main
