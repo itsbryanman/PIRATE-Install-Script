@@ -24,13 +24,13 @@ The script is designed to automatically detect your Linux distribution (Debian, 
 
 ---
 
-## ⚓ Introduction
+##  Introduction
 
 Welcome to the **P.I.R.A.T.E. Media Server Install Script**! This script automates the setup of a comprehensive media server environment, integrating various tools and services to manage, stream, and monitor your media collection effortlessly. Whether you're a media enthusiast or looking to centralize your content, P.I.R.A.T.E. has got you covered.
 
 ---
 
-## 🦜 Features
+##  Features
 
 * **Modular Design**: The script is designed to be easily extensible, allowing you to add new tools and features with minimal effort.
 * **Support for Multiple Distributions**: The script automatically detects your Linux distribution and uses the appropriate package manager.
@@ -40,7 +40,7 @@ Welcome to the **P.I.R.A.T.E. Media Server Install Script**! This script automat
 
 ---
 
-## 🛠 Installation
+##  Installation
 
 1.  **Clone the Repository**
     ```bash
@@ -55,7 +55,7 @@ Welcome to the **P.I.R.A.T.E. Media Server Install Script**! This script automat
 
 ---
 
-## 🚢 Usage
+##  Usage
 
 The script will present you with a menu of options:
 
@@ -66,7 +66,7 @@ The script will present you with a menu of options:
 
 ---
 
-## 🛡 Security
+## Security
 
 The script follows security best practices, such as:
 
@@ -76,7 +76,7 @@ The script follows security best practices, such as:
 
 ---
 
-## 🔧 Configuration
+##  Configuration
 
 The script will automatically configure the tools it installs. However, you can customize the configuration of each tool by editing its configuration file. The configuration files are located in the following directories:
 
@@ -92,7 +92,7 @@ The script will automatically configure the tools it installs. However, you can 
 
 ---
 
-## 📦 Components
+## Components
 
 The script can install the following components:
 
@@ -103,19 +103,19 @@ The script can install the following components:
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 Contributions are welcome! If you would like to contribute to the script, please fork the repository and submit a pull request.
 
 ---
 
-## 📄 License
+## License
 
 This script is licensed under the MIT License.
 
 ---
 
-## 📫 Support
+##  Support
 
 If you have any questions or problems with the script, please open an issue on GitHub.
 
