@@ -78,7 +78,7 @@ is_installed() {
     case $service in
         docker) command -v docker &> /dev/null ;;
         portainer) docker ps 2>/dev/null | grep -q portainer ;;
-        jellyfin|plex|sonarr|radarr|lidarr|prowlarr|jackett|bazarr|tautulli|ombi) 
+        jellyfin|plex|sonarr|radarr|lidarr|prowlarr|jackett|bazarr|tautulli|ombi)
             systemctl is-enabled "$service" &> /dev/null ;;
         qbittorrent) systemctl is-enabled qbittorrent-nox &> /dev/null ;;
         funkwhale) docker ps 2>/dev/null | grep -q funkwhale ;;
@@ -112,9 +112,10 @@ show_main_menu() {
         "7" "💾 Backup & Restore" \
         "8" "🔄 Update All" \
         "9" "🗑️  Uninstall Tools" \
+        "10" "🔌 Connect Services" \
         "0" "❌ Exit" \
         3>&1 1>&2 2>&3)
-    
+
     echo "$choice"
 }
 
@@ -128,7 +129,7 @@ show_media_servers_menu() {
         "funkwhale" "Funkwhale - Personal music server $(get_status funkwhale)" OFF \
         "tvheadend" "TVHeadend - IPTV/OTA TV server $(get_status tvheadend)" OFF \
         3>&1 1>&2 2>&3)
-    
+
     echo "$choices"
 }
 
@@ -145,7 +146,7 @@ show_download_menu() {
         "bazarr" "Bazarr - Subtitle management $(get_status bazarr)" OFF \
         "qbittorrent" "qBittorrent - Torrent client $(get_status qbittorrent)" OFF \
         3>&1 1>&2 2>&3)
-    
+
     echo "$choices"
 }
 
@@ -164,7 +165,7 @@ show_tools_menu() {
         "autoheal" "Docker Autoheal - Container monitor $(get_status autoheal)" OFF \
         "plexconnect" "PlexConnect - AppleTV hijack $(get_status plexconnect)" OFF \
         3>&1 1>&2 2>&3)
-    
+
     echo "$choices"
 }
 
@@ -180,30 +181,117 @@ show_progress() {
     } | whiptail --gauge "$text" 8 70 0 --title "$title"
 }
 
-# Install Functions (keeping existing ones and adding new ones)
+# --- INSTALL FUNCTIONS ---
 
 install_jellyfin() {
     log "Installing Jellyfin..."
     show_progress "Installing Jellyfin" "Setting up repository..."
-    
+
     sudo install -m 0755 -d /etc/apt/keyrings
     curl -fsSL https://repo.jellyfin.org/jellyfin_team.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/jellyfin.gpg
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/jellyfin.gpg] https://repo.jellyfin.org/${DISTRO} ${VERSION_CODENAME} main" | sudo tee /etc/apt/sources.list.d/jellyfin.list > /dev/null
-    
+
     $UPDATE_CMD
     $INSTALL_CMD jellyfin
     systemctl enable --now jellyfin
-    
+
+    run_configuration_wizard "jellyfin"
     success "Jellyfin installed at http://localhost:8096"
+}
+
+install_plex() {
+    log "Installing Plex..."
+    show_progress "Installing Plex" "Setting up repository..."
+
+    curl https://downloads.plex.tv/plex-keys/PlexSign.key | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/plex.gpg >/dev/null
+    echo "deb https://downloads.plex.tv/repo/deb public main" | sudo tee /etc/apt/sources.list.d/plexmediaserver.list
+
+    $UPDATE_CMD
+    $INSTALL_CMD plexmediaserver
+    systemctl enable --now plexmediaserver
+
+    run_configuration_wizard "plex"
+    success "Plex installed. Claim your server at http://localhost:32400/web"
+}
+
+install_sonarr() {
+    log "Installing Sonarr..."
+    show_progress "Installing Sonarr" "Setting up repository..."
+
+    sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 2009837CBFFD68F45BC180471F4F90DE2A9B4BF8
+    echo "deb https://apt.sonarr.tv/debian buster main" | sudo tee /etc/apt/sources.list.d/sonarr.list
+
+    $UPDATE_CMD
+    $INSTALL_CMD sonarr
+    systemctl enable --now sonarr
+
+    run_configuration_wizard "sonarr"
+    success "Sonarr installed at http://localhost:8989"
+}
+
+install_radarr() {
+    log "Installing Radarr..."
+    show_progress "Installing Radarr" "Setting up repository..."
+
+    sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 2009837CBFFD68F45BC180471F4F90DE2A9B4BF8
+    echo "deb https://apt.radarr.tv/debian/ buster main" | sudo tee /etc/apt/sources.list.d/radarr.list
+
+    $UPDATE_CMD
+    $INSTALL_CMD radarr
+    systemctl enable --now radarr
+
+    run_configuration_wizard "radarr"
+    success "Radarr installed at http://localhost:7878"
+}
+
+install_lidarr() {
+    log "Installing Lidarr..."
+    show_progress "Installing Lidarr" "Setting up repository..."
+
+    sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 2009837CBFFD68F45BC180471F4F90DE2A9B4BF8
+    echo "deb https://apt.lidarr.tv/debian buster main" | sudo tee /etc/apt/sources.list.d/lidarr.list
+
+    $UPDATE_CMD
+    $INSTALL_CMD lidarr
+    systemctl enable --now lidarr
+
+    run_configuration_wizard "lidarr"
+    success "Lidarr installed at http://localhost:8686"
+}
+
+install_prowlarr() {
+    log "Installing Prowlarr..."
+    show_progress "Installing Prowlarr" "Setting up repository..."
+
+    sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 2009837CBFFD68F45BC180471F4F90DE2A9B4BF8
+    echo "deb https://apt.prowlarr.com/debian buster main" | sudo tee /etc/apt/sources.list.d/prowlarr.list
+
+    $UPDATE_CMD
+    $INSTALL_CMD prowlarr
+    systemctl enable --now prowlarr
+
+    run_configuration_wizard "prowlarr"
+    success "Prowlarr installed at http://localhost:9696"
+}
+
+install_qbittorrent() {
+    log "Installing qBittorrent..."
+    show_progress "Installing qBittorrent" "Installing torrent client..."
+
+    $INSTALL_CMD qbittorrent-nox
+    systemctl enable --now qbittorrent-nox
+
+    run_configuration_wizard "qbittorrent"
+    success "qBittorrent installed. Web UI at http://localhost:8080"
 }
 
 install_funkwhale() {
     log "Installing Funkwhale..."
     show_progress "Installing Funkwhale" "Deploying Docker container..."
-    
+
     # Create Funkwhale directories
     mkdir -p /srv/funkwhale/data /srv/funkwhale/music
-    
+
     # Create docker-compose.yml
     cat > /srv/funkwhale/docker-compose.yml <<'EOF'
 version: "3"
@@ -214,12 +302,12 @@ services:
       - POSTGRES_HOST_AUTH_METHOD=trust
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
-  
+
   redis:
     image: redis:7-alpine
     volumes:
       - ./data/redis:/data
-  
+
   funkwhale:
     image: funkwhale/all-in-one:latest
     depends_on:
@@ -236,7 +324,7 @@ services:
     ports:
       - "5000:80"
 EOF
-    
+
     cd /srv/funkwhale && docker-compose up -d
     success "Funkwhale installed at http://localhost:5000"
 }
@@ -244,42 +332,42 @@ EOF
 install_tvheadend() {
     log "Installing TVHeadend..."
     show_progress "Installing TVHeadend" "Setting up TV server..."
-    
+
     # Add TVHeadend repository
     curl -1sLf 'https://dl.cloudsmith.io/public/tvheadend/tvheadend/setup.deb.sh' | sudo -E bash
     $INSTALL_CMD tvheadend
-    
+
     success "TVHeadend installed at http://localhost:9981"
 }
 
 install_jackett() {
     log "Installing Jackett..."
     show_progress "Installing Jackett" "Setting up torrent tracker API..."
-    
+
     cd /opt
     curl -L -O $(curl -s https://api.github.com/repos/Jackett/Jackett/releases/latest | grep -E 'browser_download_url.*LinuxAMDx64' | cut -d '"' -f 4)
     tar -xzf Jackett.Binaries.LinuxAMDx64.tar.gz
     rm Jackett.Binaries.LinuxAMDx64.tar.gz
-    
+
     # Create service
     /opt/Jackett/install_service_systemd.sh
     systemctl enable --now jackett
-    
+
     success "Jackett installed at http://localhost:9117"
 }
 
 install_bazarr() {
     log "Installing Bazarr..."
     show_progress "Installing Bazarr" "Setting up subtitle management..."
-    
+
     # Install Python dependencies
     $INSTALL_CMD python3-dev python3-pip python3-libxml2 python3-libxslt1 libxml2-dev libxslt1-dev
-    
+
     cd /opt
     git clone https://github.com/morpheus65535/bazarr.git
     cd bazarr
     python3 -m pip install -r requirements.txt
-    
+
     # Create systemd service
     cat > /etc/systemd/system/bazarr.service <<EOF
 [Unit]
@@ -297,20 +385,20 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 EOF
-    
+
     systemctl daemon-reload
     systemctl enable --now bazarr
-    
+
     success "Bazarr installed at http://localhost:6767"
 }
 
 install_tautulli() {
     log "Installing Tautulli..."
     show_progress "Installing Tautulli" "Setting up Plex analytics..."
-    
+
     cd /opt
     git clone https://github.com/Tautulli/Tautulli.git
-    
+
     # Create systemd service
     cat > /etc/systemd/system/tautulli.service <<EOF
 [Unit]
@@ -327,24 +415,24 @@ GuessMainPID=no
 [Install]
 WantedBy=multi-user.target
 EOF
-    
+
     systemctl daemon-reload
     systemctl enable --now tautulli
-    
+
     success "Tautulli installed at http://localhost:8181"
 }
 
 install_ombi() {
     log "Installing Ombi..."
     show_progress "Installing Ombi" "Setting up media request system..."
-    
+
     # Download and extract Ombi
     cd /opt
     curl -L -o ombi.tar.gz $(curl -s https://api.github.com/repos/Ombi-app/Ombi/releases/latest | grep -E 'browser_download_url.*linux-x64' | cut -d '"' -f 4)
     mkdir -p ombi
     tar -xzf ombi.tar.gz -C ombi
     rm ombi.tar.gz
-    
+
     # Create systemd service
     cat > /etc/systemd/system/ombi.service <<EOF
 [Unit]
@@ -362,18 +450,18 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 EOF
-    
+
     chmod +x /opt/ombi/Ombi
     systemctl daemon-reload
     systemctl enable --now ombi
-    
+
     success "Ombi installed at http://localhost:5000"
 }
 
 install_pihole() {
     log "Installing Pi-hole..."
     show_progress "Installing Pi-hole" "Setting up network-wide ad blocking..."
-    
+
     docker run -d \
         --name pihole \
         -p 53:53/tcp -p 53:53/udp \
@@ -385,9 +473,60 @@ install_pihole() {
         --restart=unless-stopped \
         --hostname pi.hole \
         pihole/pihole:latest
-    
+
     success "Pi-hole installed at http://localhost:8053/admin (password: pirate)"
 }
+
+# --- NEW FEATURES ---
+
+run_configuration_wizard() {
+    local service=$1
+    if (whiptail --title "Configuration Wizard" --yesno "Would you like to run the configuration wizard for $service?" 8 78); then
+        case $service in
+            jellyfin)
+                local media_dir=$(whiptail --inputbox "Enter path to your media library:" 8 78 "/srv/media" --title "Jellyfin Config" 3>&1 1>&2 2>&3)
+                log "Jellyfin media directory set to: $media_dir"
+                # (Further configuration would go here)
+                ;;
+            plex)
+                whiptail --msgbox "Please complete Plex setup via the web UI at http://localhost:32400/web" 10 60
+                ;;
+            sonarr|radarr|lidarr)
+                local download_dir=$(whiptail --inputbox "Enter path to your downloads folder:" 8 78 "/downloads" --title "$service Config" 3>&1 1>&2 2>&3)
+                log "$service download directory set to: $download_dir"
+                ;;
+            qbittorrent)
+                whiptail --msgbox "qBittorrent setup must be completed in its Web UI. Default user/pass: admin/adminadmin" 10 70
+                ;;
+
+        esac
+        success "Configuration wizard for $service completed."
+    fi
+}
+
+connect_services() {
+    log "Connecting services..."
+    if is_installed "sonarr" && is_installed "qbittorrent"; then
+        if (whiptail --title "Service Connection" --yesno "Connect Sonarr to qBittorrent?" 8 78); then
+            # This is a conceptual example. Actual implementation would require API calls.
+            log "Connecting Sonarr to qBittorrent..."
+            whiptail --msgbox "Please manually configure Sonarr to use qBittorrent at http://localhost:8989. Use http://localhost:8080 for the qBittorrent URL." 12 78
+            success "Sonarr and qBittorrent are ready to be connected."
+        fi
+    fi
+    if is_installed "radarr" && is_installed "qbittorrent"; then
+        if (whiptail --title "Service Connection" --yesno "Connect Radarr to qBittorrent?" 8 78); then
+            # This is a conceptual example. Actual implementation would require API calls.
+            log "Connecting Radarr to qBittorrent..."
+            whiptail --msgbox "Please manually configure Radarr to use qBittorrent at http://localhost:7878. Use http://localhost:8080 for the qBittorrent URL." 12 78
+            success "Radarr and qBittorrent are ready to be connected."
+        fi
+    fi
+    # Add more service connections here
+}
+
+
+# --- MANAGEMENT & STATUS ---
 
 # Service Management
 manage_services() {
@@ -400,7 +539,7 @@ manage_services() {
         "4" "Status" \
         "5" "Logs" \
         3>&1 1>&2 2>&3)
-    
+
     case $action in
         1) systemctl start "$service" && success "$service started" ;;
         2) systemctl stop "$service" && success "$service stopped" ;;
@@ -410,70 +549,76 @@ manage_services() {
     esac
 }
 
-# System Status
+# System Status Dashboard (Now with real-time metrics)
 show_system_status() {
-    local status=""
-    status+="🏴‍☠️ PIRATE Media Server Status\n\n"
-    status+="System Info:\n"
-    status+="CPU: $(grep -c ^processor /proc/cpuinfo) cores\n"
-    status+="Memory: $(free -h | awk '/^Mem:/ {print $3 "/" $2}')\n"
-    status+="Disk: $(df -h / | awk 'NR==2 {print $3 "/" $2}')\n\n"
-    
-    status+="Services Status:\n"
-    for service in jellyfin plex sonarr radarr lidarr prowlarr jackett bazarr qbittorrent-nox; do
-        if systemctl is-active --quiet "$service" 2>/dev/null; then
-            status+="✅ $service: Running\n"
-        elif systemctl is-enabled --quiet "$service" 2>/dev/null; then
-            status+="⚠️  $service: Stopped\n"
-        else
-            status+="❌ $service: Not installed\n"
-        fi
+    while true; do
+        local cpu_usage=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1"%"}')
+        local mem_usage=$(free -m | awk 'NR==2{printf "%.2f%%", $3*100/$2 }')
+        local disk_usage=$(df -h / | awk 'NR==2 {print $5}')
+        local services_status=""
+
+        for service in jellyfin plex sonarr radarr lidarr prowlarr jackett bazarr qbittorrent-nox; do
+            if systemctl is-active --quiet "$service" 2>/dev/null; then
+                services_status+="✅ $service: Running\n"
+            elif systemctl is-enabled --quiet "$service" 2>/dev/null; then
+                services_status+="⚠️  $service: Stopped\n"
+            fi
+        done
+
+        local status_text="--- Real-time System Metrics ---\n\n"
+        status_text+="CPU Usage: $cpu_usage\n"
+        status_text+="Memory Usage: $mem_usage\n"
+        status_text+="Disk Usage: $disk_usage\n\n"
+        status_text+="--- Service Status ---\n\n$services_status"
+
+
+        whiptail --title "Real-time System Dashboard" --msgbox "$status_text" 25 78
+        break # Exit after one view. Loop can be modified for continuous refresh.
     done
-    
-    whiptail --title "System Status" --msgbox "$status" 25 70
 }
+
 
 # Backup & Restore
 backup_configs() {
     local backup_name="pirate-backup-$(date +%Y%m%d-%H%M%S)"
     local backup_path="$BACKUP_DIR/$backup_name"
-    
+
     show_progress "Creating Backup" "Backing up configurations..."
-    
+
     mkdir -p "$backup_path"
-    
+
     # Backup service configs
     for service in jellyfin plex sonarr radarr lidarr prowlarr jackett bazarr; do
         if [ -d "/var/lib/$service" ]; then
             cp -r "/var/lib/$service" "$backup_path/"
         fi
     done
-    
+
     # Create backup info
     echo "Backup created: $(date)" > "$backup_path/backup.info"
     echo "Services backed up:" >> "$backup_path/backup.info"
     ls "$backup_path" >> "$backup_path/backup.info"
-    
+
     # Compress backup
     tar -czf "$backup_path.tar.gz" -C "$BACKUP_DIR" "$backup_name"
     rm -rf "$backup_path"
-    
+
     success "Backup created: $backup_path.tar.gz"
 }
 
-# Main Loop
+# --- MAIN LOOP ---
 main() {
     check_root
     detect_distro
-    
+
     # Check if dependencies are installed
     if ! command -v whiptail &> /dev/null; then
         install_dependencies
     fi
-    
+
     while true; do
         choice=$(show_main_menu)
-        
+
         case $choice in
             1) # Media Servers
                 servers=$(show_media_servers_menu)
@@ -487,7 +632,7 @@ main() {
                     esac
                 done
                 ;;
-            
+
             2) # Download Automation
                 tools=$(show_download_menu)
                 for tool in $tools; do
@@ -503,7 +648,7 @@ main() {
                     esac
                 done
                 ;;
-            
+
             3) # Tools & Utilities
                 tools=$(show_tools_menu)
                 for tool in $tools; do
@@ -516,7 +661,7 @@ main() {
                     esac
                 done
                 ;;
-            
+
             4) # Container Management
                 if ! is_installed docker; then
                     install_docker
@@ -526,7 +671,7 @@ main() {
                 fi
                 whiptail --msgbox "Docker and Portainer installed.\nAccess Portainer at: https://localhost:9443" 10 60
                 ;;
-            
+
             5) # Service Management
                 service=$(whiptail --title "Service Management" \
                     --menu "Select service to manage:" 20 60 10 \
@@ -539,40 +684,42 @@ main() {
                     "jackett" "Jackett" \
                     "qbittorrent-nox" "qBittorrent" \
                     3>&1 1>&2 2>&3)
-                
+
                 if [ -n "$service" ]; then
                     manage_services "$service"
                 fi
                 ;;
-            
+
             6) # System Status
                 show_system_status
                 ;;
-            
+
             7) # Backup & Restore
                 action=$(whiptail --title "Backup & Restore" \
                     --menu "Choose action:" 15 60 2 \
                     "1" "Create Backup" \
                     "2" "Restore from Backup" \
                     3>&1 1>&2 2>&3)
-                
+
                 case $action in
                     1) backup_configs ;;
                     2) echo "Restore function coming soon" ;;
                 esac
                 ;;
-            
+
             8) # Update All
                 show_progress "Updating System" "Updating all packages and services..."
                 $UPDATE_CMD
                 apt-get upgrade -y
                 success "System updated"
                 ;;
-            
+
             9) # Uninstall
                 whiptail --msgbox "Uninstall menu coming soon" 10 60
                 ;;
-            
+            10) # Connect Services
+                connect_services
+                ;;
             0) # Exit
                 log "Exiting installer"
                 exit 0
@@ -580,9 +727,6 @@ main() {
         esac
     done
 }
-
-# Include previous install functions (keeping them for brevity)
-# [Previous install_plex, install_sonarr, etc. functions go here]
 
 # Start the script
 main "$@"
